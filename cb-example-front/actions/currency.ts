@@ -31,6 +31,8 @@ export interface CountryInfo {
 export interface ConversionParams {
 	input: { currency: string; amount: number };
 	output_currency: string;
+	conversionTree: Map<string, Map<string, number>>;
+	countries: CountriesDTO;
 }
 
 export interface CountriesDTO {
@@ -85,9 +87,6 @@ const fetchFlagAndCountry = async (cnt: CBResponse): Promise<CountryInfo> => {
 		} catch (error) {
 			// TODO: arreglar bug isla ascencion y bandera
 			if (country_name != cnt.isoCode) {
-				// console.log("TODO: this country is being left out ");
-				// console.log(country_name);
-				// console.log(cnt.isoCode);
 			} else {
 				// console.log("Trick country? ", country_name);
 			}
@@ -126,147 +125,97 @@ export const getSendersAndReceivers = async (): Promise<CountriesDTO> => {
 	};
 };
 
-class ConversionController {
-	_countries!: CountriesDTO;
-	_conversionTree!: Map<string, Map<string, number>>;
+export async function fetchConversions(countries: CountriesDTO) {
+	const url = "http://127.0.0.1:8000/api/";
 
-	set countries(countries: CountriesDTO) {
-		this._countries = countries;
-	}
-	get countries() {
-		return this._countries;
-	}
+	// filter duplicate sender currencies
 
-	url: string;
-	constructor(
-		host: string = "http://127.0.0.1",
-		port: number = 8000,
-		route: string = "api/",
-	) {
-		this._conversionTree = new Map<string, Map<string, number>>();
-		this.url = host + ":" + port.toString() + "/" + route;
-	}
-
-	async fetchConversions() {
-		if (!this._countries) {
-			throw Error("countries attribute hasn't been set");
-		}
-
-		// filter duplicate sender currencies
-
-		const sender_set = new Set<string>();
-		const receiver_set = new Set<string>();
-		const sender_currencies: Array<string> = this._countries.senders
-			.filter((value) => {
-				if (sender_set.has(value.currency)) {
-					return false;
-				}
-				sender_set.add(value.currency);
-				return true;
-			})
-			.map((value) => value.currency);
-		const receiver_currencies: Array<string> = this._countries.receivers
-			.filter((value) => {
-				if (receiver_set.has(value.currency)) {
-					return false;
-				}
-				receiver_set.add(value.currency);
-				return true;
-			})
-			.map((value) => value.currency);
-
-		// prepare requests
-		const requestArray: Array<ConversionRequest> = sender_currencies.map(
-			(value): ConversionRequest => {
-				return {
-					input_currency: value,
-					output_currencies: ["CLP"],
-				};
-			},
-		);
-		requestArray.push({
-			input_currency: "CLP",
-			output_currencies: receiver_currencies,
-		});
-
-		// fetch from api
-		const conversionData: Array<ConversionResponse> = await Promise.all(
-			requestArray.map(async (value) => {
-				try {
-					const response = await axios.post(this.url, value, {
-						responseType: "json",
-					});
-					return response.data as ConversionResponse;
-				} catch (error) {
-					// console.log("failed to fetch conversion");
-					// console.log(value.input_currency);
-					// console.log(value.output_currencies);
-					// console.log(error);
-					return {
-						date: "",
-						sender_code: "",
-						conversions: new Map<string, number>(),
-					};
-				}
-			}),
-		);
-
-		if (conversionData.length <= 0) {
-			return;
-		}
-
-		//Popuate tree
-		conversionData.forEach((response) => {
-			const senderCurrency = response.sender_code.toUpperCase();
-
-			if (!this._conversionTree.has(senderCurrency)) {
-				this._conversionTree.set(senderCurrency, new Map<string, number>());
+	const sender_set = new Set<string>();
+	const receiver_set = new Set<string>();
+	const sender_currencies: Array<string> = countries.senders
+		.filter((value) => {
+			if (sender_set.has(value.currency)) {
+				return false;
 			}
+			sender_set.add(value.currency);
+			return true;
+		})
+		.map((value) => value.currency);
+	const receiver_currencies: Array<string> = countries.receivers
+		.filter((value) => {
+			if (receiver_set.has(value.currency)) {
+				return false;
+			}
+			receiver_set.add(value.currency);
+			return true;
+		})
+		.map((value) => value.currency);
 
-			const outputCurrencies = this._conversionTree.get(senderCurrency);
-			const conversions = new Map<string, number>(
-				Object.entries(response.conversions),
-			);
-			conversions.forEach((rate, receiverCurrency) => {
-				outputCurrencies?.set(receiverCurrency.toUpperCase(), rate);
-			});
-		});
-		// console.log(this._conversionTree);
+	// prepare requests
+	const requestArray: Array<ConversionRequest> = sender_currencies.map(
+		(value): ConversionRequest => {
+			return {
+				input_currency: value,
+				output_currencies: ["CLP"],
+			};
+		},
+	);
+	requestArray.push({
+		input_currency: "CLP",
+		output_currencies: receiver_currencies,
+	});
+
+	// fetch from api
+	const conversionData: Array<ConversionResponse> = await Promise.all(
+		requestArray.map(async (value) => {
+			try {
+				const response = await axios.post(url, value, {
+					responseType: "json",
+				});
+				return response.data as ConversionResponse;
+			} catch (error) {
+				return {
+					date: "",
+					sender_code: "",
+					conversions: new Map<string, number>(),
+				};
+			}
+		}),
+	);
+
+	if (conversionData.length <= 0) {
+		return;
 	}
-	async convertCurrency(params: ConversionParams): Promise<number> {
-		if (this._conversionTree.keys.length <= 0) {
-			console.log("fetching conversions");
-			await this.fetchConversions();
+
+	const conversionTree = new Map<string, Map<string, number>>();
+
+	//Popuate tree
+	conversionData.forEach((response) => {
+		const senderCurrency = response.sender_code.toUpperCase();
+
+		if (conversionTree.has(senderCurrency)) {
+			conversionTree.set(senderCurrency, new Map<string, number>());
 		}
-		// consult rate
-		const rate = this._conversionTree
-			.get(params.input.currency)
-			?.get(params.output_currency) as number;
-		// return result
-		return params.input.amount * rate * 0.95;
-	}
+
+		const outputCurrencies = conversionTree.get(senderCurrency);
+		const conversions = new Map<string, number>(
+			Object.entries(response.conversions),
+		);
+		conversions.forEach((rate, receiverCurrency) => {
+			outputCurrencies?.set(receiverCurrency.toUpperCase(), rate);
+		});
+	});
+	// console.log(this._conversionTree);
+	return conversionTree;
 }
 
-// Testing plus instance export construction
-const Conversions = new ConversionController();
-
-// getSendersAndReceivers().then((result) => {
-// 	// console.log(result.senders.length);
-// 	// console.log(result.receivers.length);
-// 	Conversions.countries = result;
-// 	console.log("converting 1000 usd to clp and back");
-// 	Conversions.convertCurrency({
-// 		input: { currency: "USD", amount: 1000 },
-// 		output_currency: "CLP",
-// 	}).then((result) => {
-// 		console.log(result);
-// 		Conversions.convertCurrency({
-// 			input: { currency: "CLP", amount: 1000 },
-// 			output_currency: "USD",
-// 		}).then((result) => {
-// 			console.log(result);
-// 		});
-// 	});
-// });
-
-export default Conversions;
+export async function convertCurrency(
+	params: ConversionParams,
+): Promise<number> {
+	// consult rate
+	const rate = params.conversionTree
+		.get(params.input.currency)
+		?.get(params.output_currency) as number;
+	// return result
+	return params.input.amount * rate * 0.95;
+}

@@ -18,6 +18,8 @@ import { CountriesDTO } from "@/actions/currency";
 // Main component
 const CurrencyTransfer: React.FC = () => {
 	const [countryData, setCountryData] = useState<CountriesDTO>();
+	const [conversionTree, setConversionTree] =
+		useState<Map<string, Map<string, number>>>();
 	const [senderCurrency, setSenderCurrency] = useState<string>();
 	const [receiverCurrency, setReceiverCurrency] = useState<string>();
 	const [amount, setAmount] = useState<number>();
@@ -32,7 +34,6 @@ const CurrencyTransfer: React.FC = () => {
 			const data: CountriesDTO = await response.json();
 			setCountryData(data);
 		};
-
 		fetchCountryData();
 	}, []);
 
@@ -50,7 +51,7 @@ const CurrencyTransfer: React.FC = () => {
 		});
 		const result = await response.json();
 		setConversionResult(result.result);
-	}, [senderCurrency, receiverCurrency]);
+	}, [senderCurrency, receiverCurrency, amount]);
 
 	//functions passed to subcomponents
 	const handleAmountChange = async (value: number) => {

@@ -1,19 +1,21 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import Conversions, { ConversionParams } from "@/actions/currency";
+import { NextResponse } from "next/server";
+import {
+	fetchConversions,
+	convertCurrency,
+	ConversionParams,
+} from "@/actions/currency";
 
-export default async function handler(
-	req: NextApiRequest,
-	res: NextApiResponse,
-) {
+export async function POST(request: Request) {
 	try {
-		if (req.method === "POST") {
-			const params: ConversionParams = req.body;
-			const result: number = await Conversions.convertCurrency(params);
-			res.status(200).json({ result });
-		} else {
-			res.status(405).json({ error: "Method not allowed" });
-		}
+		const body: ConversionParams = await request.json();
+		// const convTree: Map<string, Map<string, number>> = await fetchConversions();
+		const result: number = await convertCurrency(body);
+		return NextResponse.json({ result }, { status: 200 });
 	} catch (error) {
-		res.status(500).json({ error: "Conversion failed" });
+		return NextResponse.json({ error: "Conversion failed" }, { status: 500 });
 	}
+}
+
+export async function OPTIONS() {
+	return NextResponse.json({ error: "Method not allowed" }, { status: 405 });
 }
