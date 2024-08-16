@@ -1,7 +1,7 @@
 "use client";
 import labels from "@/defaults/crude-labels";
 import theme from "@/defaults/crude-theme";
-import { currencySelectorDTO } from "@/actions/currency";
+import { CountryInfo } from "@/actions/currency";
 import {
 	Box,
 	Button,
@@ -16,27 +16,14 @@ import Image from "next/image";
 
 type CurrencySelectorProps = {
 	onCurrencyChange: (currencyCode: string) => void;
+	currencies: Array<CountryInfo>;
 };
 
 const CurrencySelector: React.FC<CurrencySelectorProps> = ({
 	onCurrencyChange,
+	currencies,
 }) => {
-	const [currencies, setCurrencies] = useState<currencySelectorDTO[]>();
 	const [selectedCurrency, setSelectedCurrency] = useState<string>("");
-
-	useEffect(() => {
-		// Fetch currencies here
-		const fetchCurrencies = async () => {
-			// Replace this with your actual fetch function
-			// const fetchedCurrencies = await fetchCurrenciesFromAPI();
-			// setCurrencies(fetchedCurrencies);
-			// if (fetchedCurrencies.length > 0) {
-			// 	setSelectedCurrency(fetchedCurrencies[0].code);
-			// }
-		};
-
-		fetchCurrencies();
-	}, []);
 
 	const handleChange = (event: SelectChangeEvent<string>) => {
 		setSelectedCurrency(event.target.value);
@@ -49,7 +36,7 @@ const CurrencySelector: React.FC<CurrencySelectorProps> = ({
 			onChange={handleChange}
 			displayEmpty
 			renderValue={(value) => {
-				const currency = currencies.find((c) => c.code === value);
+				const currency = currencies.find((c) => c.currency === value);
 				return currency ? (
 					<Box sx={{ display: "flex", alignItems: "center" }}>
 						<Image
@@ -59,14 +46,14 @@ const CurrencySelector: React.FC<CurrencySelectorProps> = ({
 							height={16}
 							style={{ marginRight: 8 }}
 						/>
-						<Typography>{currency.code}</Typography>
+						<Typography>{currency.currency}</Typography>
 					</Box>
 				) : null;
 			}}
 			sx={{ minWidth: 120 }}
 		>
 			{currencies.map((currency) => (
-				<MenuItem key={currency.code} value={currency.code}>
+				<MenuItem key={currency.currency} value={currency.currency}>
 					<Box sx={{ display: "flex", alignItems: "center" }}>
 						<Image
 							src={currency.flagSrc}
@@ -76,7 +63,7 @@ const CurrencySelector: React.FC<CurrencySelectorProps> = ({
 							style={{ marginRight: 8 }}
 						/>
 						<Typography>
-							{currency.code} - {currency.country}
+							{currency.currency} - {currency.country}
 						</Typography>
 					</Box>
 				</MenuItem>
@@ -84,3 +71,5 @@ const CurrencySelector: React.FC<CurrencySelectorProps> = ({
 		</Select>
 	);
 };
+
+export default CurrencySelector;

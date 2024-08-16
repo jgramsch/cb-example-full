@@ -1,29 +1,67 @@
 "use client";
 import labels from "@/defaults/crude-labels";
 import theme from "@/defaults/crude-theme";
-import { currencySelectorDTO } from "@/actions/currency";
 import {
 	Box,
 	Button,
 	Typography,
 	TextField,
 	MenuItem,
-	Select,
 	SelectChangeEvent,
 } from "@mui/material";
 import React, { ChangeEvent, useCallback, useEffect, useState } from "react";
 import CurrencyField from "./currencyIO";
+import CurrencySelector from "./currencySelector";
+import { CountriesDTO } from "@/actions/currency";
 // Selector
 
 // Main component
 const CurrencyTransfer: React.FC = () => {
-	const [amount, setAmount] = useState(500000); // Default value
-	const [exchangeRate] = useState(254.7); // Exchange rate, could be dynamic
-	const [arrivalDate] = useState("2024-08-12"); // Arrival date, could be dynamic
-	const handleAmountChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		setAmount(Number(event.target.value));
+	const [countryData, setCountryData] = useState<CountriesDTO>();
+	const [senderCurrency, setSenderCurrency] = useState<string>();
+	const [receiverCurrency, setReceiverCurrency] = useState<string>();
+	const [amount, setAmount] = useState<number>();
+	const [conversionResult, setConversionResult] = useState<number>();
+
+	// Fetch country data
+	useEffect(() => {
+		const fetchCountryData = async () => {
+			console.log("response");
+			const response = await fetch("/api/countries");
+			console.log(response);
+			const data: CountriesDTO = await response.json();
+			setCountryData(data);
+		};
+
+		fetchCountryData();
+	}, []);
+
+	//fetch conversions  call
+	const handleConvert = useCallback(async () => {
+		const response = await fetch("/api/conversion", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				input: { currency: senderCurrency, amount: amount },
+				output_currency: receiverCurrency,
+			}),
+		});
+		const result = await response.json();
+		setConversionResult(result.result);
+	}, [senderCurrency, receiverCurrency]);
+
+	//functions passed to subcomponents
+	const handleAmountChange = async (value: number) => {
+		setAmount(value);
 	};
-	const convertedAmount = (amount / exchangeRate).toFixed(2);
+	const handleSenderSelected = async (value: string) => {
+		setSenderCurrency(value);
+	};
+	const handleReceiverSelected = async (value: string) => {
+		setReceiverCurrency(value);
+	};
 
 	return (
 		<Box
@@ -49,45 +87,15 @@ const CurrencyTransfer: React.FC = () => {
 					}}
 				>
 					<CurrencyField type="input" />
-
-					<Box
-						sx={{
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "center",
-						}}
-					>
-						<TextField
-							select
-							value="CLP"
-							variant="outlined"
-							size="small"
-							sx={{ width: "80px", marginBottom: 1 }}
-						>
-							<MenuItem value="CLP">CLP</MenuItem>
-							<MenuItem value="ARS">ARS</MenuItem>
-							{/* Add more currency options here */}
-						</TextField>
-						<Typography variant="h6">{convertedAmount}</Typography>
-					</Box>
-
-					<Box
-						sx={{
-							display: "flex",
-							flexDirection: "column",
-							alignItems: "flex-end",
-						}}
-					>
-						<TextField
-							select
-							value="PEN"
-							variant="outlined"
-							size="small"
-							sx={{ width: "80px", marginBottom: 1 }}
-						>
-							<MenuItem value="PEN">PEN</MenuItem>
-						</TextField>
-					</Box>
+					<CurrencySelector
+						onCurrencyChange={handleSenderSelected}
+						currencies={countryData ? countryData.senders : []}
+					/>
+					<CurrencyField type="output" defaultAmount={conversionResult} />
+					<CurrencySelector
+						onCurrencyChange={handleReceiverSelected}
+						currencies={countryData ? countryData.receivers : []}
+					/>
 				</Box>
 				<Button
 					variant="contained"
@@ -108,8 +116,8 @@ const CurrencyTransfer: React.FC = () => {
 				justifyContent={"space-around"}
 				alignItems={"center"}
 			>
-				<Typography variant="body2">Fecha de llegada: {arrivalDate}</Typography>
-				<Typography variant="body2">Tipo de Cambio: {exchangeRate}</Typography>
+				<Typography variant="body2">Fecha de llegada: {"---"}</Typography>
+				<Typography variant="body2">Tipo de Cambio: {"---"}</Typography>
 			</Box>
 		</Box>
 	);

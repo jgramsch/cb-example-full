@@ -4,20 +4,26 @@ from pydantic import BaseModel
 from typing import Dict, List
 import httpx
 
-app = FastAPI()
+class ConversionRequest(BaseModel):
+    input_currency: str
+    output_currencies: List[str]
 
+class ConversionResponse(BaseModel):
+    date: str
+    sender_code: str
+    conversions: Dict[str,float]
 
 class ConversionDTO(BaseModel):
     date: str
     currency_code: str
-    currency_dict: dict[str,float]
+    currency_dict: Dict[str,float]
 
 class CurrencyData(BaseModel):
-    currency_dict: dict[str,float]
+    currency_dict: Dict[str,float]
 
 class MemoryStatus(BaseModel):
     status: str
-    data_index: dict[str,dict[str,list[str]]] # {date: {currency: [*(avaiable target currencies)] } }
+    data_index: Dict[str,Dict[str,List[str]]] # {date: {currency: [*(avaiable target currencies)] } }
 
 class ConversionMemory:
     use_date = True
@@ -28,19 +34,22 @@ class ConversionMemory:
         self.conversion_table: dict[str,dict[str,CurrencyData]] = {}
         self.last_status: str = "Ready"
 
-    async def get_conversions(self, sender_code: str, receiver_code: str):
-        pass
-
-    async def get_conversion(self, sender_code: str, receiver_code: str) -> float:
+    async def get_conversions(self, sender_code: str, receiver_list: List[str]):
         now = datetime.now()
         date_str = f"{now.year}-{str(now.month).zfill(2)}-{str(now.day).zfill(2)}"
+        conversions = {receiver: await self.get_conversion(date_str,sender_code,receiver) for receiver in receiver_list}
+        return ConversionResponse(date=date_str,sender_code=sender_code,conversions=conversions)
+        # return {"date":date_str,"sender_code":sender_code,"conversions":conversions}
+
+
+    async def get_conversion(self ,date_str: str, sender_code: str, receiver_code: str) -> float:
         if date_str in self.conversion_table.keys(): 
             if sender_code in self.conversion_table[date_str].keys():
                 if not receiver_code in self.conversion_table[date_str][sender_code].currency_dict.keys():
                     self.last_status = "Error 406 " + f"Unsupported currency {receiver_code}"
                     raise HTTPException(status_code=406,detail=f"Unsupported currency {receiver_code}")
                 self.last_status = "OK"
-                return (date_str,self.conversion_table[date_str][sender_code].currency_dict[receiver_code])
+                return self.conversion_table[date_str][sender_code].currency_dict[receiver_code]
 
         conversion_obj:ConversionDTO = await self.fetch_conversions(date_str,sender_code)
         self.add_response(conversion_obj)
@@ -48,7 +57,7 @@ class ConversionMemory:
             self.last_status = "Error 406 " + f"Unsupported currency {receiver_code}"
             raise HTTPException(status_code=406,detail=f"Unsupported currency {receiver_code}")
         self.last_status = "OK"
-        return (date_str,conversion_obj.currency_dict[receiver_code])
+        return conversion_obj.currency_dict[receiver_code]
 
     def add_response(self, entry_data: ConversionDTO):
         if not entry_data.date in self.conversion_table.keys():
@@ -83,23 +92,22 @@ class ConversionMemory:
                 db_index[date][curr] = list(convl.currency_dict.keys())
         return {"status": self.last_status,"saved_currencies":db_index}
 
+
 __conversion_kb = ConversionMemory()
+app = FastAPI()
 
 
-@app.get("/api/")
-async def fetch_conversion(input_currency:str = "clp", output_currency:str = "usd"):
-    input_currency = input_currency.lower()
-    output_currency = output_currency.lower()
-
-    result: float = await __conversion_kb.get_conversion(input_currency,output_currency)
-    date, conversion = result
-    print("date:",date,"conversion:",conversion)
-    return {"query_parameters":{"sender":input_currency,"receiver":output_currency,"date":date},"conversion_ratio":conversion}
 
 @app.get("/")
 def show_status():
     return  __conversion_kb.get_status()
 
+@app.post("/api/")
+async def fetch_conversion(conversion_request: ConversionRequest):
+    input_currency = conversion_request.input_currency.lower()
+    output_currencies = list([i.lower() for i in conversion_request.output_currencies])
+
+    return await __conversion_kb.get_conversions(input_currency,output_currencies)
 
 
 if __name__ == "__main__":
