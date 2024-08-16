@@ -26,16 +26,16 @@ const CurrencyTransfer: React.FC = () => {
 	const [conversionResult, setConversionResult] = useState<number>();
 
 	// Fetch country data
-	useEffect(() => {
-		const fetchCountryData = async () => {
-			console.log("response");
-			const response = await fetch("/api/countries");
-			console.log(response);
-			const data: CountriesDTO = await response.json();
-			setCountryData(data);
-		};
-		fetchCountryData();
-	}, []);
+	// useEffect(() => {
+	// 	const fetchCountryData = async () => {
+	// 		console.log("response");
+	// 		const response = await fetch("/api/countries");
+	// 		console.log(response);
+	// 		const data: CountriesDTO = await response.json();
+	// 		setCountryData(data);
+	// 	};
+	// 	fetchCountryData();
+	// }, []);
 
 	//fetch conversions  call
 	const handleConvert = useCallback(async () => {

@@ -1,7 +1,6 @@
 "use client";
 import labels from "@/defaults/crude-labels";
 import theme from "@/defaults/crude-theme";
-import { currencySelectorDTO } from "@/actions/currency";
 import {
 	Box,
 	Button,

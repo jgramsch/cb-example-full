@@ -7,3 +7,5 @@ Hay un problema en el controlador que conecta el front con el back desde el lado
 ### Explicación y funcionamiento:
 
 - Video:
+
+https://youtu.be/BCMRI-jJMTQ
